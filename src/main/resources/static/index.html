@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Support Template Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+        .container {
+            display: flex;
+            gap: 30px;
+        }
+        .panel {
+            flex: 1;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        input, button {
+            padding: 10px;
+            margin-top: 10px;
+        }
+        input {
+            width: 80%;
+        }
+        button {
+            width: 18%;
+            margin-left: 2%;
+        }
+        #result {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            min-height: 100px;
+        }
+        #chatContainer {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 18px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        .bot-message {
+            background-color: #f1f1f1;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        .chat-input {
+            display: flex;
+            margin-top: 10px;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="panel">
+        <h2>Generate Support Template</h2>
+        <input type="text" id="issueType" placeholder="Enter issue type..." />
+        <br>
+        <button onclick="generateTemplate()">Generate</button>
+
+        <div id="result"></div>
+    </div>
+
+    <div class="panel">
+        <h2>Chat Assistant</h2>
+        <div id="chatContainer"></div>
+        <div class="chat-input">
+            <input type="text" id="userInput" placeholder="Ask anything..." />
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const input = document.getElementById("issueType");
+
+    // Enter key for template generator
+    input.addEventListener("keydown", function(event) {
+        if (event.key === "Enter") {
+            generateTemplate();
+        }
+    });
+
+    async function generateTemplate() {
+        const issueType = input.value;
+        const resultDiv = document.getElementById("result");
+
+        if (!issueType.trim()) {
+            resultDiv.textContent = "Please enter an issue type.";
+            return;
+        }
+
+        resultDiv.textContent = "Generating template...";
+
+        try {
+            const response = await fetch("http://localhost:8095/api/templates/generate", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ issueType })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                resultDiv.textContent = `Template:\n\n${data.template}`;
+            } else {
+                resultDiv.textContent = `Error: ${data.error}`;
+            }
+        } catch (error) {
+            resultDiv.textContent = `Request failed: ${error.message}`;
+        }
+    }
+
+    // Chat functionality
+    const chatContainer = document.getElementById("chatContainer");
+    const userInput = document.getElementById("userInput");
+
+    // Add welcome message
+    addBotMessage("Hello! I'm your support assistant. How can I help you today?");
+
+    // Enter key for chat
+    userInput.addEventListener("keydown", function(event) {
+        if (event.key === "Enter") {
+            sendMessage();
+        }
+    });
+
+    let conversationContext = []; // To maintain conversation history
+
+    async function sendMessage() {
+        const message = userInput.value.trim();
+        if (!message) return;
+
+        // Add user message to chat
+        addUserMessage(message);
+        userInput.value = "";
+
+        // Show loading indicator
+        const loadingId = addBotMessage("Thinking...", true);
+
+        // Add to conversation context
+        conversationContext.push({role: "user", content: message});
+
+        try {
+            const response = await fetch("http://localhost:8095/api/templates/chat", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    issueType2: message,
+                    context: conversationContext
+                })
+            });
+
+            // Remove loading indicator
+            removeLoadingMessage(loadingId);
+
+            if (response.ok) {
+                const responseText = await response.text();
+                // Add bot response to chat and context
+                addBotMessage(responseText);
+                conversationContext.push({role: "assistant", content: responseText});
+            } else {
+                const error = await response.text();
+                addBotMessage(`Error: ${error}`);
+            }
+        } catch (error) {
+            removeLoadingMessage(loadingId);
+            addBotMessage(`Request failed: ${error.message}`);
+        }
+    }
+
+    function addUserMessage(text) {
+        const messageDiv = document.createElement("div");
+        messageDiv.className = "message user-message";
+        messageDiv.textContent = text;
+        chatContainer.appendChild(messageDiv);
+        scrollToBottom();
+    }
+
+    function addBotMessage(text, isLoading = false) {
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message bot-message ${isLoading ? 'loading' : ''}`;
+        messageDiv.textContent = text;
+        if (isLoading) {
+            messageDiv.id = "loading-" + Date.now();
+        }
+        chatContainer.appendChild(messageDiv);
+        scrollToBottom();
+        return isLoading ? messageDiv.id : null;
+    }
+
+    function removeLoadingMessage(id) {
+        const loadingElement = document.getElementById(id);
+        if (loadingElement) {
+            loadingElement.remove();
+        }
+    }
+
+    function scrollToBottom() {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+</script>
+</body>
+</html>
