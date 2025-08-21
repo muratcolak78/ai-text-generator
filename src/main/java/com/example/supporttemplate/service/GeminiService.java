@@ -33,7 +33,7 @@ public class GeminiService {
 				.defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
 				.build();
 	}
-
+	//chat
 	public String chat(String context) {
 		try {
 		// Create the prompt
